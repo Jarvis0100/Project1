@@ -1,0 +1,43 @@
+import boto3
+import time
+import logging
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
+def lambda_handler(event, context):
+    glue = boto3.client('glue')
+    try:
+        logger.info("Starting the crawler")
+        crawler_response = glue.start_crawler(Name='datacrawler')
+        
+        while True:
+            crawler_status = glue.get_crawler(Name='s3-to-glue-crawler')['Crawler']['State']
+            logger.info(f"Crawler status: {crawler_status}")
+            if crawler_status == 'READY':
+                logger.info("Crawler is ready")
+                break
+            time.sleep(30)  # Wait for 30 sec
+        
+        logger.info("Starting the Glue job")
+        job_response = glue.start_job_run(JobName='newjob')
+        
+        logger.info("Glue job started successfully")
+        return {
+            'statusCode': 200,
+            'body': {
+                'message': 'Glue job started successfully',
+                'crawler_response': crawler_response,
+                'job_response': job_response
+            }
+        }
+    
+    except Exception as e:
+        logger.error(f"Error starting Glue job: {str(e)}")
+        return {
+            'statusCode': 500,
+            'body': {
+                'message': 'Error starting Glue job',
+                'error': str(e)
+            }
+        }
